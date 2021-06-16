@@ -1,17 +1,52 @@
 <!DOCTYPE HTML>
 
-<body style="background: rosybrown">
+<body>
 
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta charset="UTF-8">
     <style>
+      body {
+        margin: 0;
+        background-color: rgb(0, 0, 0, 0.8);
+      }
+
+      button {
+        background: white;
+        width: 35px;
+        border-left: 1px solid black;
+        border-bottom: 0px;
+        border-top: 0px;
+        border-right: 0px;
+        cursor: pointer
+      }
+
+      button:hover {
+        background-color: whitesmoke
+      }
+
+      button:active {
+        box-shadow: inset 2px 2px 2px 2px #666;
+      }
+
+      .menu-button {
+        padding: 7px;
+        border-radius: 5px;
+        width: auto;
+      }
+
+      input {
+        padding: 7px;
+        border-radius: 5px;
+      }
+
       li {
-        display: inline-block;
+        padding: 0 0 0 5px;
       }
 
       canvas {
         background-color: white;
+        margin: auto;
       }
 
       .span {
@@ -149,15 +184,15 @@
   </head>
   <div id="result"></div>
   <div style="display: flex; flex-direction: column;">
-    <div style="margin: 10px;">
-      <input autofocus id="in"></input>
-      <button onclick="addName()">+</button>
-      <button onclick="savePreset()">Save as preset</button>
-      <button onclick="loadPreset()">Load preset</button>
-      <button id="btn" onclick="init()">"Spin" the wheel</button>
+    <div>
+      <input placeholder="Add names" autofocus id="in"></input>
+      <button class="menu-button" onclick="addName()">+</button>
+      <button class="menu-button" onclick="savePreset()">Save as preset</button>
+      <button class="menu-button" onclick="loadPreset()">Load preset</button>
+      <button class="menu-button" id="init-btn" onclick="init()">"Spin" the wheel</button>
       <ul id="users"></ul>
     </div>
-    <canvas id="canvas" style="border: 1px solid black; display:block;margin: auto"></canvas>
+    <canvas id="canvas" hidden=true></canvas>
   </div>
 
 
@@ -174,15 +209,15 @@
     }
 
     let running = false;
-    const W = Math.floor(innerWidth * 0.8);
-    const H = Math.floor(innerHeight * 0.8);
+    const W = innerWidth
+    const H = innerHeight
     const positionWidth = 2;
     const positionHeight = 2;
     const get = id => document.getElementById(id);
     const create = type => document.createElement(type);
     const canvas = get('canvas');
-    canvas.width = W;
-    canvas.height = H;
+    canvas.width = W
+    canvas.height = H
     const context = canvas.getContext('2d', { alpha: false });
     context.font = '30px Arial';
     const clear = () => {
@@ -191,7 +226,7 @@
       context.strokeStyle = 'black'
       context.fillStyle = "black"
     };
-    clear();
+    // clear();
 
 
     let userSet = new Set();
@@ -281,15 +316,17 @@
 
     const onStart = () => {
       running = true;
-      get('btn').disabled = true;
+      get('init-btn').disabled = true;
       get("users").hidden = true;
       canvas.hidden = false;
+      get("canvas").requestFullscreen()
     };
 
 
     const onEnd = () => {
       running = false;
-      get('btn').disabled = false;
+      get('init-btn').disabled = false;
+      document.exitFullscreen()
     };
 
     const init = () => {
@@ -409,8 +446,8 @@
       if (p.y < 0) {
         p.dy = p.dy > 0 ? p.dy : -p.dy
       }
-      p.x = p.x + Math.floor((p.dx * p.velocity)) % W;
-      p.y = p.y + Math.floor((p.dy * p.velocity)) % H;
+      p.x = p.x + (p.dx * p.velocity) % W;
+      p.y = p.y + (p.dy * p.velocity) % H;
       if (p.velocity !== 0) {
         p.velocity = Math.abs(p.velocity - 0.01) > 0.1 ? p.velocity - 0.01 : 0;
       }
