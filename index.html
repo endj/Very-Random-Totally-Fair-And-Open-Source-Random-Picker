@@ -10,6 +10,10 @@
         display: inline-block;
       }
 
+      canvas {
+        background-color: white;
+      }
+
       .span {
         font-weight: 200;
       }
@@ -153,26 +157,47 @@
       <button id="btn" onclick="init()">"Spin" the wheel</button>
       <ul id="users"></ul>
     </div>
-
     <canvas id="canvas" style="border: 1px solid black; display:block;margin: auto"></canvas>
   </div>
 
 
   <script>
-    let snd = new Audio("a.wav")
-    let CONFIG = {
-
+    const SOUND = {
+      applause: new Audio("a.wav")
     }
+    let CONFIG = {
+      maxRender: 1000,
+      baseVelocity: 8,
+      randomVelocity: 2,
+      renderNames: true,
+      userListRenderLimit: 25
+    }
+
     let running = false;
-    const W = window.innerWidth * 0.8;
-    const H = window.innerHeight * 0.8;
-    const positionWidth = 6;
-    const positionHeight = 6;
+    const W = Math.floor(innerWidth * 0.8);
+    const H = Math.floor(innerHeight * 0.8);
+    const positionWidth = 2;
+    const positionHeight = 2;
     const get = id => document.getElementById(id);
     const create = type => document.createElement(type);
+    const canvas = get('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const context = canvas.getContext('2d', { alpha: false });
+    context.font = '30px Arial';
+    const clear = () => {
+      context.fillStyle = 'white';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.strokeStyle = 'black'
+      context.fillStyle = "black"
+    };
+    clear();
+
+
     let userSet = new Set();
     const input = get('in');
     const users = get('users');
+
     input.addEventListener('keypress', e => {
       if (e.key == 'Enter') {
         if (e.shiftKey && !running) {
@@ -206,35 +231,48 @@
       render();
     }
 
-    const clear = () => {
-      context.fillStyle = 'white';
-      context.fillRect(0, 0, canvas.width, canvas.height);
-    };
+
     const render = () => {
       get('users').innerHTML = '';
-      userSet.forEach(u => addUser(u));
+      let renderedUsers = Math.min(CONFIG.userListRenderLimit, userSet.size);
+      for (user of userSet) {
+        addUserToList(user);
+        if (renderedUsers-- === 0) {
+          addUserListContinuation(userSet.size - CONFIG.userListRenderLimit)
+          break
+        }
+      }
     };
+
     const remove = name => {
       userSet.delete(name);
       render();
     };
-    const addUser = name => {
+
+
+    const addUserToList = name => {
+
       let item = create('li');
       item.classList.add('name');
       item.innerHTML = `<span>${name}</span><button onclick="remove('${name}')">-</button>`;
       users.appendChild(item);
     };
+
+
+    const addUserListContinuation = (more) => {
+      let item = create('li')
+      item.classList.add('name');
+      item.innerHTML = `<span>and ${more} more...</span>`
+      users.appendChild(item)
+    }
+
     const addName = () => {
       input.value && userSet.add(input.value);
       input.value = '';
       render();
     };
 
-    const canvas = get('canvas');
-    canvas.width = W;
-    canvas.height = H;
-    const context = canvas.getContext('2d');
-    clear();
+
     const randpos = () => Math.floor(Math.random() * W - positionWidth);
     const coinflip = () => Math.random() > 0.5;
 
@@ -248,6 +286,7 @@
       canvas.hidden = false;
     };
 
+
     const onEnd = () => {
       running = false;
       get('btn').disabled = false;
@@ -258,24 +297,38 @@
         return
       }
       onStart();
+
+
+      if (userSet.size > 1000) {
+        CONFIG.renderNames = false;
+      }
+
       positions = [...userSet].map(name => {
-        let dx = Math.random();
-        let dy = 1 - dx;
-        return { name: name, x: W / 2, y: H / 2, dx: coinflip() ? dx : -dx, dy: coinflip() ? dy : -dy, velocity: 8 + Math.random() * 2 };
+        const dx = Math.random();
+        const dy = Math.random();
+        return {
+          name: name,
+          x: Math.floor(W / 2 + (coinflip() ? -Math.random() * W / 8 : Math.random() * W / 8)),
+          y: Math.floor(H / 2 + (coinflip() ? -Math.random() * H / 8 : Math.random() * H / 8)),
+          dx: coinflip() ? dx : -dx,
+          dy: coinflip() ? dy : -dy,
+          velocity: CONFIG.baseVelocity + Math.random() * CONFIG.randomVelocity
+        };
       });
-      target = { x: 100 + Math.random() * (W - 200), y: 100 + Math.random() * (H - 200) };
+      target = {
+        x: Math.floor(100 + Math.random() * (W - 200)),
+        y: Math.floor(100 + Math.random() * (H - 200))
+      };
       tick();
     };
 
-    const drawPoint = (point, fillStyle = 'black', strokeStyle = "black") => {
-      context.fillStyle = fillStyle;
-      context.strokeStyle = strokeStyle
-      context.fillRect(point.x, point.y, 5, 5);
-      context.font = '30px Arial';
-      context.strokeText(point.name, point.x + 10, point.y + 10);
+    const drawPoint = (point) => {
+      context.fillRect(point.x, point.y, positionWidth, positionHeight);
+      CONFIG.renderNames && context.strokeText(point.name, point.x + 10, point.y + 10);
     };
+
     const drawTarget = (target) => {
-      let orig = context.lineWidth
+      const orig = context.lineWidth
       context.lineWidth = 10;
       context.strokeStyle = "red"
       context.beginPath();
@@ -290,19 +343,18 @@
     };
 
     const computeFinalScore = () => {
-      let result = [];
+      const result = [];
       positions.forEach(p => {
-        let [x, y] = [p.x + positionWidth / 2, p.y + positionHeight / 2];
-        let distance = Math.sqrt(Math.pow((x - target.x), 2) + Math.pow((y - target.y), 2));
+        const [x, y] = [p.x + positionWidth / 2, p.y + positionHeight / 2];
+        const distance = Math.sqrt(Math.pow((x - target.x), 2) + Math.pow((y - target.y), 2));
         result.push({ dist: distance, pos: p });
       });
-      return CONFIG.sort ? CONFIG.sort(result) : result.sort((a, b) => a.dist - b.dist);
+      return result.sort((a, b) => a.dist - b.dist);
     };
 
     const drawLines = scores => {
       scores.forEach(score => {
-        context.fillStyle = "black"
-        let [x, y] = [score.pos.x + positionWidth / 2, score.pos.y + positionHeight / 2];
+        const [x, y] = [score.pos.x + positionWidth / 2, score.pos.y + positionHeight / 2];
         context.beginPath()
         context.moveTo(x, y)
         context.lineTo(target.x, target.y)
@@ -314,51 +366,75 @@
       get('result').innerHTML = '';
       get("users").hidden = false;
     };
+
     const resultPopup = (scores) => {
-      let popup = create('div');
-      let wrapper = create('div');
+      const popup = create('div');
+      const wrapper = create('div');
       popup.id = 'popup';
       wrapper.classList.add('result');
       popup.classList.add('popup');
 
-      let medals = ["🥉", "🥈", "🥇"]
+
+      const medals = ["🥉", "🥈", "🥇"]
       wrapper.innerHTML += `<h1>Congrats ${scores[0].pos.name}</h1>`
       scores.forEach(score => {
         wrapper.innerHTML += `<div><span>${medals.pop()}</span> <span>${score.pos.name} -> ${score.dist}</span></div>`;
       });
       popup.appendChild(wrapper);
       wrapper.innerHTML += `<div id="confettis">
-  <div class="confetti"></div>
-  <div class="confetti"></div>
-  <div class="confetti"></div>
-  <div class="confetti"></div>
-  <div class="confetti"></div>
-  <div class="confetti"></div>
-  <div class="confetti"></div>
-  <div class="confetti"></div>
-  <div class="confetti"></div>
-</div>`
+                                <div class="confetti"></div>
+                                <div class="confetti"></div>
+                                <div class="confetti"></div>
+                                <div class="confetti"></div>
+                                <div class="confetti"></div>
+                                <div class="confetti"></div>
+                                <div class="confetti"></div>
+                                <div class="confetti"></div>
+                                <div class="confetti"></div>
+                            </div>`
+
       get('result').appendChild(popup);
     };
 
     const updatePoint = (p) => {
-      p.x = p.x + (p.dx * p.velocity) % W;
-      p.y = p.y + (p.dy * p.velocity) % H;
-      p.dx = (p.x > W - 20 || p.x < 0) ? -p.dx : p.dx;
-      p.dy = (p.y > H - 20 || p.y < 0) ? -p.dy : p.dy;
+      if (p.x > W) {
+        p.dx = p.dx > 0 ? -p.dx : p.dx
+      }
+      if (p.x < 0) {
+        p.dx = p.dx > 0 ? p.dx : -p.dx
+      }
+      if (p.y > H) {
+        p.dy = p.dy > 0 ? -p.dy : p.dy
+      }
+      if (p.y < 0) {
+        p.dy = p.dy > 0 ? p.dy : -p.dy
+      }
+      p.x = p.x + Math.floor((p.dx * p.velocity)) % W;
+      p.y = p.y + Math.floor((p.dy * p.velocity)) % H;
       if (p.velocity !== 0) {
-        p.velocity = Math.abs(p.velocity - 0.01) > 0.1 ? Math.abs(p.velocity - 0.01) : 0;
+        p.velocity = Math.abs(p.velocity - 0.01) > 0.1 ? p.velocity - 0.01 : 0;
       }
     }
 
     const tick = () => {
       clear();
       let done = true;
-      positions.forEach(p => {
-        CONFIG.apply ? CONFIG.apply(p) : updatePoint(p)
-        done &= p.velocity === 0;
-      });
-      positions.forEach(p => drawPoint(p));
+
+
+      var i = 0, len = positions.length;
+      while (i < len) {
+        updatePoint(positions[i])
+        i++;
+      }
+
+      i = 0
+      while (i < len) {
+        const point = positions[i];
+        drawPoint(point)
+        done &= point.velocity === 0;
+        i++;
+      }
+
       drawTarget(target);
       if (!done) {
         window.requestAnimationFrame(tick);
@@ -368,7 +444,7 @@
         const top3 = scores.slice(0, 3)
         drawLines(top3)
         resultPopup(top3);
-        snd.play()
+        SOUND.applause.play()
         setTimeout("closePopup()", 6000);
       }
     };
