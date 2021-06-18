@@ -226,14 +226,12 @@
       context.strokeStyle = 'black'
       context.fillStyle = "black"
     };
-    // clear();
-
 
     let userSet = new Set();
     const input = get('in');
     const users = get('users');
 
-    input.addEventListener('keypress', e => {
+    document.addEventListener('keypress', e => {
       if (e.key == 'Enter') {
         if (e.shiftKey && !running) {
           init();
@@ -457,7 +455,6 @@
       clear();
       let done = true;
 
-
       var i = 0, len = positions.length;
       while (i < len) {
         updatePoint(positions[i])
@@ -485,5 +482,6 @@
         setTimeout("closePopup()", 6000);
       }
     };
+
   </script>
 </body>
