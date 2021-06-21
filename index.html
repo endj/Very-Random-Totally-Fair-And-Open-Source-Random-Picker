@@ -6,6 +6,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta charset="UTF-8">
     <style>
+      * {
+        font-family: 'system-ui', Tahoma, Sans-Serif;
+      }
+
       body {
         margin: 0;
         background-color: rgb(0, 0, 0, 0.8);
@@ -49,6 +53,17 @@
         margin: auto;
       }
 
+      .preset-item {
+        display: flex;
+        width: 100%;
+        justify-content: space-between;
+      }
+
+      .preset-item:hover {
+        background-color: #e5e0e0;
+        cursor: pointer
+      }
+
       .span {
         font-weight: 200;
       }
@@ -79,6 +94,46 @@
         background: #faf5ec;
         padding: 20px;
         border-radius: 10px;
+      }
+
+      .preset-menu {
+        position: absolute;
+        background: #fffbf4;
+        top: 20%;
+        border-radius: 5px;
+        left: 10%;
+        width: 80%;
+        height: 60%;
+        padding: 10px;
+        border: 5px solid;
+        border-color: darkcyan;
+      }
+
+      .preset-divider {
+        display: flex;
+        justify-content: space-around;
+      }
+
+      .toast {
+        position: fixed;
+        z-index: 99999;
+        text-align: center;
+        top: 20px;
+        right: 20px;
+        width: 200px;
+        background-color: #0ee06f;
+        border-radius: 5px;
+        padding: 10px;
+        opacity: 0;
+        transition: opacity 1s;
+      }
+
+      .fadeout {
+        opacity: 0;
+      }
+
+      .fadein {
+        opacity: 1;
       }
 
       #confettis {
@@ -183,12 +238,23 @@
     </style>
   </head>
   <div id="result"></div>
+  <div id="preset" class="preset-menu" hidden=true>
+    <div class="preset-divider">
+      <div style="width: 40%">
+        <h2>Presets</h2>
+        <ul id="presetList"></ul>
+      </div>
+      <div style="width: 40%;">
+        <ul id="presetPreview"></ul>
+      </div>
+    </div>
+  </div>
   <div style="display: flex; flex-direction: column;">
     <div>
       <input placeholder="Add names" autofocus id="in"></input>
       <button class="menu-button" onclick="addName()">+</button>
-      <button class="menu-button" onclick="savePreset()">Save as preset</button>
-      <button class="menu-button" onclick="loadPreset()">Load preset</button>
+      <button class="menu-button" onclick="saveToPreset()">Save to presets</button>
+      <button class="menu-button" onclick="toggleHidden('preset')">Presets</button>
       <button class="menu-button" id="init-btn" onclick="init()">"Spin" the wheel</button>
       <ul id="users"></ul>
     </div>
@@ -197,6 +263,8 @@
 
 
   <script>
+    const isMobile = !!/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+
     const SOUND = {
       applause: new Audio("a.wav")
     }
@@ -241,27 +309,32 @@
       }
     });
 
-    const savePreset = () => {
+    const savePresetToStorage = (name) => {
+
+      if (userSet.size > 0) {
+        const storage = loadStorage() || {}
+        storage[name] = [...userSet]
+        saveStorage(storage)
+      }
+    }
+    const getPresetByName = (name) => {
+      return loadStorage()[name]
+    }
+
+    const saveStorage = data => {
       try {
-        if (userSet.size > 0) {
-          localStorage.setItem("endj_randompicker", JSON.stringify([...userSet]))
-        }
+        localStorage.setItem("endj_randompicker", JSON.stringify(data))
       } catch (e) {
         console.error(e)
       }
     }
-    const loadPreset = () => {
+
+    const loadStorage = () => {
       try {
-
-        let users = localStorage.getItem("endj_randompicker")
-        if (users) {
-          userSet = new Set(JSON.parse(users));
-        }
+        return JSON.parse(localStorage.getItem("endj_randompicker"))
       } catch (e) {
-        console.error(e)
+        console.error(e);
       }
-
-      render();
     }
 
 
@@ -282,15 +355,12 @@
       render();
     };
 
-
     const addUserToList = name => {
-
-      let item = create('li');
+      const item = create('li');
       item.classList.add('name');
       item.innerHTML = `<span>${name}</span><button onclick="remove('${name}')">-</button>`;
       users.appendChild(item);
     };
-
 
     const addUserListContinuation = (more) => {
       let item = create('li')
@@ -317,14 +387,16 @@
       get('init-btn').disabled = true;
       get("users").hidden = true;
       canvas.hidden = false;
-      get("canvas").requestFullscreen()
+      if (!isMobile) {
+        get("canvas").requestFullscreen()
+      }
     };
 
 
     const onEnd = () => {
       running = false;
       get('init-btn').disabled = false;
-      document.exitFullscreen()
+      document.fullscreen && document.exitFullscreen()
     };
 
     const init = () => {
@@ -482,6 +554,102 @@
         setTimeout("closePopup()", 6000);
       }
     };
+
+    const toggleHidden = (id) => {
+      const element = get(id)
+      element.hidden = !element.hidden
+      populatePresetList()
+    }
+
+
+    const saveToPreset = () => {
+      const name = prompt("Name of preset")
+      if (name && userSet.size > 0) {
+        savePresetToStorage(name);
+        toast("Created preset " + name)
+        populatePresetList()
+      } else {
+        toast("Creating preset requires at least 1 name")
+      }
+    }
+
+    const populatePresetList = () => {
+      let data = loadStorage()
+      const preset = get("presetList")
+      preset.innerHTML = ""
+      data && Object.entries(data).forEach(entry => {
+        const [name, entries] = entry;
+        const li = create("li")
+        li.innerHTML = `<div onmouseover=preview('${encodeURIComponent(name)}')  class="preset-item" onclick="loadAndNotifyPreset('${name}')">
+                                  <span >${name}</span><button onclick="removePreset(event, '${name}')">-</button>
+                        </div>`
+        li.classList += "name"
+        preset.appendChild(li)
+      })
+    }
+
+    const loadAndNotifyPreset = name => {
+      loadUsersFromPreset(name)
+      toastWithDuration("Loaded preset: " + name, 1300)
+    }
+    const loadUsersFromPreset = name => {
+      userSet = new Set(getPresetByName(name));
+      render()
+      toggleHidden("preset")
+    }
+
+    const removePreset = (event, name) => {
+      event.stopPropagation()
+      if (confirm("Are you sure you want to delete preset " + name)) {
+        let storage = loadStorage()
+        delete storage[name]
+        saveStorage(storage)
+        toastWithDuration("Removed preset: " + name, 1500)
+        populatePresetList()
+      }
+    }
+
+    const preview = presetName => {
+      let name = decodeURIComponent(presetName)
+      const presetList = getPresetByName(name);
+      if (presetList) {
+        const preview = get("presetPreview")
+        preview.innerHTML = `<h2>Preset: "${name}"</h2>`
+        for (name of presetList) {
+          preview.appendChild(createPrevieUserEntry(name))
+        }
+      }
+    }
+
+    const createPrevieUserEntry = (name) => {
+      const li = create("li")
+      li.classList += "name"
+      li.innerHTML = `<span>${name}</span>`
+      return li
+    }
+
+    const toast = message => toastWithDuration(message, 3000)
+
+    const toastWithDuration = (message, duration) => {
+      try {
+        let durationMs = parseInt(duration)
+        const container = create("div");
+        container.classList += "toast";
+
+        const text = create("div");
+        text.innerHTML = message;
+        container.appendChild(text);
+        document.body.appendChild(container)
+
+        setTimeout(() => { container.classList = "toast fadein" }, 500);
+        setTimeout(() => { container.classList = "toast fadeout" }, 500 + durationMs);
+        setTimeout(() => { document.body.removeChild(container) }, 500 + durationMs + 1000);
+      } catch (e) {
+        console.error(e)
+      }
+
+    }
+
 
   </script>
 </body>
