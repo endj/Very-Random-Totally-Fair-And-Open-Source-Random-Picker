@@ -1,0 +1,34 @@
+<!DOCTYPE HTML>
+
+<body>
+
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <div id="result"></div>
+  <div id="preset" class="preset-menu" hidden=true>
+    <div class="preset-divider">
+      <div style="width: 40%">
+        <h2>Presets</h2>
+        <ul id="presetList"></ul>
+      </div>
+      <div style="width: 40%;">
+        <ul id="presetPreview"></ul>
+      </div>
+    </div>
+  </div>
+  <div style="display: flex; flex-direction: column;">
+    <div>
+      <input placeholder="Add names" autofocus id="in"></input>
+      <button class="menu-button" id="add-name">+</button>
+      <button class="menu-button" id="save-preset">Save to presets</button>
+      <button class="menu-button" id="toggle-preset">Presets</button>
+      <button class="menu-button" id="init-btn">"Spin" the wheel</button>
+      <ul id="users"></ul>
+    </div>
+    <canvas id="canvas" hidden=true></canvas>
+  </div>
+  <script src="code.js"></script>
+</body>
