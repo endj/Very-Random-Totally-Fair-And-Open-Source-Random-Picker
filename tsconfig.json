@@ -1,6 +1,6 @@
 {
     "compilerOptions": {
-        "outDir": "./out",
+        "outDir": "./docs",
         "allowJs": true,
         "target": "es2017"
     },
