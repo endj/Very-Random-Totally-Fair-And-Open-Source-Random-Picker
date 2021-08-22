@@ -6,6 +6,31 @@ let CONFIG = {
 const SOUND = {
     applause: new Audio("a.wav")
 };
+class PixelImage {
+    constructor(name, sourcePath, height, width) {
+        this.name = name;
+        this.height = height;
+        this.width = width;
+        let image = new Image();
+        image.src = sourcePath;
+        this.imgData = image;
+    }
+}
+var ImageNames;
+(function (ImageNames) {
+    ImageNames[ImageNames["TELEPORT"] = 0] = "TELEPORT";
+    ImageNames[ImageNames["DUPLICATE"] = 1] = "DUPLICATE";
+})(ImageNames || (ImageNames = {}));
+class Images {
+}
+Images.images = new Map([
+    [ImageNames.DUPLICATE, new PixelImage(ImageNames.DUPLICATE, "duplicate.png", 48, 48)],
+    [ImageNames.TELEPORT, new PixelImage(ImageNames.TELEPORT, "teleport.png", 48, 48)]
+]);
+Images.getImage = (name) => Images.images.get(name);
+class Maths {
+}
+Maths.coinflip = () => Math.random() > 0.5;
 class Target {
     constructor(x, y) {
         this.x = x;
@@ -23,6 +48,55 @@ class Point {
     }
 }
 Point.pointRenderSize = 2;
+var EffectNames;
+(function (EffectNames) {
+    EffectNames[EffectNames["TELEPORT"] = 0] = "TELEPORT";
+    EffectNames[EffectNames["DUPLICATE"] = 1] = "DUPLICATE";
+    EffectNames[EffectNames["GRAVITY"] = 2] = "GRAVITY"; // Todo
+})(EffectNames || (EffectNames = {}));
+class EffectFunctions {
+}
+EffectFunctions.coinflip = () => Math.random() > 0.5;
+EffectFunctions.effects = new Map([
+    [EffectNames.DUPLICATE,
+        (context, p) => {
+            for (let i = 0; i < 2; i++) {
+                const dx = Math.random();
+                const dy = Math.random();
+                context.state.positions.push(new Point(p.name, p.x, p.y, Maths.coinflip() ? dx : -dx, Maths.coinflip() ? dy : -dy, p.velocity));
+            }
+        }
+    ],
+    [EffectNames.TELEPORT,
+        (context, p) => {
+            let [x, y] = context.state.safeRandomLocation();
+            context.state.target = new Target(x, y);
+        }
+    ]
+]);
+EffectFunctions.getFunction = (effectName) => EffectFunctions.effects.get(effectName);
+class Effect {
+    constructor(img, x, y, apply) {
+        this.img = img;
+        this.x = x;
+        this.y = y;
+        this.id = Math.random();
+        this.apply = apply;
+    }
+}
+class EffectsRepository {
+}
+EffectsRepository.effects = new Map([
+    [EffectNames.DUPLICATE,
+        new Effect(Images.getImage(ImageNames.DUPLICATE), 0, 0, EffectFunctions.getFunction(EffectNames.DUPLICATE))],
+    [EffectNames.TELEPORT,
+        new Effect(Images.getImage(ImageNames.TELEPORT), 0, 0, EffectFunctions.getFunction(EffectNames.TELEPORT))]
+]);
+EffectsRepository.getEffect = (name) => EffectsRepository.effects.get(name);
+EffectsRepository.createEffect = (name) => {
+    const effect = EffectsRepository.getEffect(name);
+    return new Effect(effect.img, effect.x, effect.y, effect.apply);
+};
 class Score {
     constructor(score, point) {
         this.score = score;
@@ -39,12 +113,36 @@ class State {
     constructor(renderConstraints, onCompletion) {
         this.running = false;
         this.positions = [];
+        this.effects = [];
         this.target = new Target(0, 0);
         this.coinflip = () => Math.random() > 0.5;
+        this.initializeEffects = () => {
+            const numOfEffects = Math.min(5, this.positions.length);
+            this.effects.push(this.effectWithRandomLocation(EffectNames.DUPLICATE));
+            this.effects.push(this.effectWithRandomLocation(EffectNames.TELEPORT));
+            for (let i = 0; i < numOfEffects; i++) {
+                this.effects.push(this.randomEffectAndLocation());
+            }
+        };
+        this.randomEffectAndLocation = () => {
+            let choices = [EffectNames.DUPLICATE, EffectNames.TELEPORT];
+            return this.effectWithRandomLocation(choices[Math.floor((Math.random()) * choices.length)]);
+        };
+        this.effectWithRandomLocation = (effect) => {
+            const e = EffectsRepository.createEffect(effect);
+            let [x, y] = this.safeRandomLocation();
+            e.x = x;
+            e.y = y;
+            return e;
+        };
         this.initializeTarget = () => {
+            let [x, y] = this.safeRandomLocation();
+            this.target = new Target(x, y);
+        };
+        this.safeRandomLocation = () => {
             let W = this.renderConstraints.width;
             let H = this.renderConstraints.height;
-            this.target = new Target(Math.floor(100 + Math.random() * (W - 200)), Math.floor(100 + Math.random() * (H - 200)));
+            return [Math.floor(100 + Math.random() * (W - 200)), Math.floor(100 + Math.random() * (H - 200))];
         };
         this.updatePoint = (p) => {
             let W = this.renderConstraints.width;
@@ -110,6 +208,9 @@ class CanvasRenderer {
                 c.stroke();
             });
         };
+        this.drawEffect = (effect) => {
+            this.context.drawImage(effect.img.imgData, effect.x, effect.y);
+        };
         this.drawTarget = (target) => {
             const c = this.context;
             const orig = c.lineWidth;
@@ -124,6 +225,9 @@ class CanvasRenderer {
             c.lineTo(target.x + 10, target.y - 10);
             c.stroke();
             c.lineWidth = orig;
+        };
+        this.drawImage = (image, x, y) => {
+            this.context.drawImage(image.imgData, x, y, image.width, image.height);
         };
         this.canvas = canvas;
         this.W = canvas.width;
@@ -363,6 +467,7 @@ class StateMachine {
             this.onStart();
             this.state.initializePoints(this.ui.userSet);
             this.state.initializeTarget();
+            this.state.initializeEffects();
             this.tick();
         };
         this.onStart = () => {
@@ -406,6 +511,19 @@ class StateMachine {
                 done = done && point.velocity === 0;
                 i++;
             }
+            const effects = this.state.effects;
+            const effectsToRemoveById = new Set();
+            for (let effect of effects) {
+                let point = this.detectEffectColision(effect, positions);
+                if (point) {
+                    effectsToRemoveById.add(effect.id);
+                    effect.apply(this, point);
+                }
+                else {
+                    this.renderer.drawImage(effect.img, effect.x, effect.y);
+                }
+            }
+            this.state.effects = effects.filter(e => !effectsToRemoveById.has(e.id));
             this.renderer.drawTarget(target);
             if (!done) {
                 window.requestAnimationFrame(this.tick);
@@ -414,6 +532,17 @@ class StateMachine {
                 this.state.running = false;
                 this.onEnd(positions, target);
             }
+        };
+        this.detectEffectColision = (effect, points) => {
+            const img = effect.img;
+            for (let point of points) {
+                if (point.x >= effect.x && point.x < (effect.x + img.width)) {
+                    if (point.y >= effect.y && point.y < (effect.y + img.height)) {
+                        return point;
+                    }
+                }
+            }
+            return undefined;
         };
         this.ui = ui;
         this.state = new State(renderSize, this.onEnd);

@@ -8,6 +8,38 @@ const SOUND = {
     applause: new Audio("a.wav")
 }
 
+class PixelImage {
+    name: ImageNames;
+    imgData: HTMLImageElement;
+    height: number;
+    width: number;
+    constructor(name: ImageNames, sourcePath: string, height: number, width: number) {
+        this.name = name;
+        this.height = height;
+        this.width = width;
+        let image = new Image();
+        image.src = sourcePath;
+        this.imgData = image;
+    }
+}
+
+enum ImageNames {
+    TELEPORT,
+    DUPLICATE
+}
+
+class Images {
+    static images: Map<ImageNames, PixelImage> = new Map([
+        [ImageNames.DUPLICATE, new PixelImage(ImageNames.DUPLICATE, "duplicate.png", 48, 48)],
+        [ImageNames.TELEPORT, new PixelImage(ImageNames.TELEPORT, "teleport.png", 48, 48)]
+    ]);
+    static getImage = (name: ImageNames) => Images.images.get(name);
+}
+
+class Maths {
+    static coinflip = () => Math.random() > 0.5;
+}
+
 class Target {
     x: number;
     y: number;
@@ -36,6 +68,66 @@ class Point {
     }
 }
 
+enum EffectNames {
+    TELEPORT,
+    DUPLICATE,
+    GRAVITY // Todo
+}
+
+class EffectFunctions {
+    static coinflip = () => Math.random() > 0.5;
+
+    static effects: Map<EffectNames, (context: StateMachine, p: Point) => void> = new Map([
+        [EffectNames.DUPLICATE,
+        (context, p) => {
+            for (let i = 0; i < 2; i++) {
+                const dx = Math.random();
+                const dy = Math.random();
+                context.state.positions.push(new Point(p.name, p.x, p.y, Maths.coinflip() ? dx : -dx, Maths.coinflip() ? dy : -dy, p.velocity));
+            }
+        }
+        ],
+        [EffectNames.TELEPORT,
+        (context, p) => {
+            let [x, y] = context.state.safeRandomLocation();
+            context.state.target = new Target(x, y);
+        }
+        ]
+    ])
+
+    static getFunction = (effectName: EffectNames) => EffectFunctions.effects.get(effectName);
+}
+
+class Effect {
+    img: PixelImage;
+    x: number;
+    y: number;
+    id: number;
+    apply: (contextmachine: StateMachine, p: Point) => void;
+    constructor(img: PixelImage, x: number, y: number, apply: (context: StateMachine, p: Point) => void) {
+        this.img = img;
+        this.x = x;
+        this.y = y;
+        this.id = Math.random();
+        this.apply = apply;
+    }
+}
+
+class EffectsRepository {
+    static effects: Map<EffectNames, Effect> = new Map([
+        [EffectNames.DUPLICATE,
+        new Effect(Images.getImage(ImageNames.DUPLICATE), 0, 0, EffectFunctions.getFunction(EffectNames.DUPLICATE))],
+        [EffectNames.TELEPORT,
+        new Effect(Images.getImage(ImageNames.TELEPORT), 0, 0, EffectFunctions.getFunction(EffectNames.TELEPORT))]
+    ])
+    static getEffect = (name: EffectNames) => EffectsRepository.effects.get(name);
+    static createEffect = (name: EffectNames) => {
+        const effect = EffectsRepository.getEffect(name);
+        return new Effect(effect.img, effect.x, effect.y, effect.apply);
+    }
+}
+
+
 class Score {
     score: number;
     point: Point;
@@ -58,6 +150,7 @@ class State {
     running: boolean = false;
     static isMobile: boolean = !!/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
     positions: Point[] = [];
+    effects: Effect[] = [];
     target: Target = new Target(0, 0);
     readonly renderConstraints: RenderSize;
     onCompletion: (final: Point[], target: Target) => void;
@@ -87,12 +180,38 @@ class State {
         });
     }
 
+    initializeEffects = () => {
+        const numOfEffects = Math.min(5, this.positions.length);
+        this.effects.push(this.effectWithRandomLocation(EffectNames.DUPLICATE));
+        this.effects.push(this.effectWithRandomLocation(EffectNames.TELEPORT));
+        for (let i = 0; i < numOfEffects; i++) {
+            this.effects.push(this.randomEffectAndLocation())
+        }
+    }
+
+
+    randomEffectAndLocation = (): Effect => {
+        let choices = [EffectNames.DUPLICATE, EffectNames.TELEPORT]
+        return this.effectWithRandomLocation(choices[Math.floor((Math.random()) * choices.length)])
+    }
+
+    effectWithRandomLocation = (effect: EffectNames) => {
+        const e: Effect = EffectsRepository.createEffect(effect);
+        let [x, y] = this.safeRandomLocation()
+        e.x = x;
+        e.y = y;
+        return e;
+    }
 
     initializeTarget = () => {
+        let [x, y] = this.safeRandomLocation();
+        this.target = new Target(x, y)
+    }
+
+    safeRandomLocation = () => {
         let W = this.renderConstraints.width
         let H = this.renderConstraints.height
-        this.target = new Target(Math.floor(100 + Math.random() * (W - 200)),
-            Math.floor(100 + Math.random() * (H - 200)))
+        return [Math.floor(100 + Math.random() * (W - 200)), Math.floor(100 + Math.random() * (H - 200))]
     }
 
     updatePoint = (p: Point) => {
@@ -124,6 +243,8 @@ interface Renderer {
     drawPoint: (p: Point) => void;
     drawTarget: (t: Target) => void;
     drawLines: (s: Score[], t: Target) => void;
+    drawEffect: (e: Effect) => void;
+    drawImage: (i: PixelImage, x: number, y: number) => void;
 }
 
 class RenderConfig {
@@ -176,6 +297,9 @@ class CanvasRenderer implements Renderer {
         })
     }
 
+    drawEffect = (effect: Effect) => {
+        this.context.drawImage(effect.img.imgData, effect.x, effect.y);
+    }
 
     drawTarget = (target: Target) => {
         const c = this.context;
@@ -192,6 +316,10 @@ class CanvasRenderer implements Renderer {
         c.stroke();
         c.lineWidth = orig
     };
+
+    drawImage = (image: PixelImage, x: number, y: number) => {
+        this.context.drawImage(image.imgData, x, y, image.width, image.height)
+    }
 }
 
 class Toast {
@@ -462,6 +590,7 @@ class StateMachine {
         this.onStart();
         this.state.initializePoints(this.ui.userSet)
         this.state.initializeTarget();
+        this.state.initializeEffects();
         this.tick();
     }
 
@@ -511,6 +640,19 @@ class StateMachine {
             i++;
         }
 
+        const effects = this.state.effects;
+        const effectsToRemoveById: Set<number> = new Set();
+        for (let effect of effects) {
+            let point = this.detectEffectColision(effect, positions);
+            if (point) {
+                effectsToRemoveById.add(effect.id);
+                effect.apply(this, point);
+            } else {
+                this.renderer.drawImage(effect.img, effect.x, effect.y)
+            }
+        }
+        this.state.effects = effects.filter(e => !effectsToRemoveById.has(e.id));
+
         this.renderer.drawTarget(target);
         if (!done) {
             window.requestAnimationFrame(this.tick);
@@ -519,6 +661,18 @@ class StateMachine {
             this.onEnd(positions, target);
         }
     };
+
+    detectEffectColision = (effect: Effect, points: Point[]): Point | undefined => {
+        const img: PixelImage = effect.img;
+        for (let point of points) {
+            if (point.x >= effect.x && point.x < (effect.x + img.width)) {
+                if (point.y >= effect.y && point.y < (effect.y + img.height)) {
+                    return point;
+                }
+            }
+        }
+        return undefined;
+    }
 }
 
 const ui = new UI();
@@ -538,6 +692,7 @@ document.addEventListener('keypress', e => {
         }
     }
 });
+
 
 ui.get('add-name').addEventListener('click', ui.addName);
 ui.get('save-preset').addEventListener('click', ui.saveToPreset);
