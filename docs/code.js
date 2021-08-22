@@ -6,6 +6,16 @@ let CONFIG = {
 const SOUND = {
     applause: new Audio("a.wav")
 };
+class RGB {
+    constructor(r, g, b) {
+        this.asString = () => {
+            return `rgb(${this.r},${this.g},${this.b})`;
+        };
+        this.r = r;
+        this.g = g;
+        this.b = b;
+    }
+}
 class PixelImage {
     constructor(name, sourcePath, height, width) {
         this.name = name;
@@ -30,7 +40,25 @@ Images.images = new Map([
 Images.getImage = (name) => Images.images.get(name);
 class Maths {
 }
+Maths.hashCache = new Map();
 Maths.coinflip = () => Math.random() > 0.5;
+Maths.hashString = (text) => {
+    const cachedHash = Maths.hashCache.get(text);
+    if (cachedHash) {
+        return cachedHash;
+    }
+    let hash = 0x811c9dc5;
+    for (let i = 0, l = text.length; i < l; i++) {
+        hash ^= text.charCodeAt(i);
+        hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+    }
+    Maths.hashCache.set(text, hash >>> 0);
+    return hash >>> 0;
+};
+Maths.numberToColour = (num) => {
+    num >>>= 0;
+    return new RGB(num & 0xFF, (num & 0xFF00) >>> 8, (num & 0xFF0000) >>> 16);
+};
 class Target {
     constructor(x, y) {
         this.x = x;
@@ -45,6 +73,7 @@ class Point {
         this.dx = dx;
         this.dy = dy;
         this.velocity = velocity;
+        this.colour = Maths.numberToColour(Maths.hashString(name));
     }
 }
 Point.pointRenderSize = 2;
@@ -196,7 +225,13 @@ class CanvasRenderer {
         };
         this.drawPoint = (point) => {
             this.context.fillRect(point.x, point.y, Point.pointRenderSize, Point.pointRenderSize);
-            this.config.renderNames && this.context.strokeText(point.name, point.x + 10, point.y + 10);
+            if (this.config.renderNames) {
+                this.context.fillStyle = point.colour.asString();
+                this.context.strokeStyle = 'black';
+                this.context.fillText(point.name, point.x + 10, point.y + 10);
+                this.context.strokeText(point.name, point.x + 10, point.y + 10);
+                this.context.fillStyle = 'black';
+            }
         };
         this.drawLines = (scores, target) => {
             const c = this.context;
@@ -557,7 +592,6 @@ const renderer = new CanvasRenderer(canvas, renderconfig);
 const statemachine = new StateMachine(ui, renderConstraint, renderer);
 document.addEventListener('keypress', e => {
     if (e.key == 'Enter') {
-        console.log(e);
         if (e.shiftKey && !statemachine.isRunning()) {
             statemachine.runSimulation();
         }

@@ -8,6 +8,20 @@ const SOUND = {
     applause: new Audio("a.wav")
 }
 
+class RGB {
+    r: number;
+    g: number;
+    b: number;
+    constructor(r: number, g: number, b: number) {
+        this.r = r;
+        this.g = g;
+        this.b = b;
+    }
+    asString = (): string => {
+        return `rgb(${this.r},${this.g},${this.b})`;
+    }
+}
+
 class PixelImage {
     name: ImageNames;
     imgData: HTMLImageElement;
@@ -37,7 +51,25 @@ class Images {
 }
 
 class Maths {
+    private static hashCache: Map<string, number> = new Map();
     static coinflip = () => Math.random() > 0.5;
+    static hashString = (text: string): number => {
+        const cachedHash = Maths.hashCache.get(text);
+        if (cachedHash) {
+            return cachedHash;
+        }
+        let hash = 0x811c9dc5
+        for (let i = 0, l = text.length; i < l; i++) {
+            hash ^= text.charCodeAt(i);
+            hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+        }
+        Maths.hashCache.set(text, hash >>> 0);
+        return hash >>> 0;
+    }
+    static numberToColour = (num: number): RGB => {
+        num >>>= 0;
+        return new RGB(num & 0xFF, (num & 0xFF00) >>> 8, (num & 0xFF0000) >>> 16);
+    }
 }
 
 class Target {
@@ -51,6 +83,7 @@ class Target {
 
 class Point {
     name: string;
+    colour: RGB;
     x: number;
     y: number;
     dx: number;
@@ -65,6 +98,7 @@ class Point {
         this.dx = dx;
         this.dy = dy;
         this.velocity = velocity;
+        this.colour = Maths.numberToColour(Maths.hashString(name));
     }
 }
 
@@ -283,7 +317,13 @@ class CanvasRenderer implements Renderer {
 
     drawPoint = (point: Point) => {
         this.context.fillRect(point.x, point.y, Point.pointRenderSize, Point.pointRenderSize);
-        this.config.renderNames && this.context.strokeText(point.name, point.x + 10, point.y + 10);
+        if (this.config.renderNames) {
+            this.context.fillStyle = point.colour.asString();
+            this.context.strokeStyle = 'black';
+            this.context.fillText(point.name, point.x + 10, point.y + 10);
+            this.context.strokeText(point.name, point.x + 10, point.y + 10);
+            this.context.fillStyle = 'black';
+        }
     };
 
     drawLines = (scores: Score[], target: Target) => {
@@ -684,7 +724,6 @@ const statemachine = new StateMachine(ui, renderConstraint, renderer);
 
 document.addEventListener('keypress', e => {
     if (e.key == 'Enter') {
-        console.log(e)
         if (e.shiftKey && !statemachine.isRunning()) {
             statemachine.runSimulation();
         } else {
