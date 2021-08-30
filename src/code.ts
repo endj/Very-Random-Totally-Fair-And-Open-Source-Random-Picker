@@ -329,7 +329,7 @@ interface Renderer {
     clear: () => void;
     drawPoint: (p: Point) => void;
     drawTarget: (t: Target) => void;
-    drawLines: (s: Score[], t: Target) => void;
+    drawWinnerLines: (s: Score[], t: Target) => void;
     drawEffect: (e: Pickups) => void;
     drawImage: (i: PixelImage, x: number, y: number) => void;
 }
@@ -379,15 +379,18 @@ class CanvasRenderer implements Renderer {
         }
     };
 
-    drawLines = (scores: Score[], target: Target) => {
+    drawWinnerLines = (scores: Score[], target: Target) => {
         const c = this.context;
+        const colors: string[] = ["red", "yellow", "green"]
         scores.forEach(score => {
             const [x, y] = [score.point.x + Point.pointRenderSize / 2, score.point.y + Point.pointRenderSize / 2];
+            c.strokeStyle = colors.pop();
             c.beginPath()
             c.moveTo(x, y)
             c.lineTo(target.x, target.y)
             c.stroke()
         })
+        c.strokeStyle = "black";
     }
 
     drawEffect = (effect: Pickups) => {
@@ -702,7 +705,7 @@ class StateMachine {
         document.fullscreen && document.exitFullscreen()
         const scores: Score[] = this.computeFinalScore(result, target);
         const top3 = scores.slice(0, 3)
-        this.renderer.drawLines(top3, target)
+        this.renderer.drawWinnerLines(top3, target)
         this.ui.resultPopup(top3)
         SOUND.applause.play()
         setTimeout(this.ui.closePopup, 6000);

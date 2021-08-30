@@ -281,15 +281,18 @@ class CanvasRenderer {
                 this.context.fillStyle = 'black';
             }
         };
-        this.drawLines = (scores, target) => {
+        this.drawWinnerLines = (scores, target) => {
             const c = this.context;
+            const colors = ["red", "yellow", "green"];
             scores.forEach(score => {
                 const [x, y] = [score.point.x + Point.pointRenderSize / 2, score.point.y + Point.pointRenderSize / 2];
+                c.strokeStyle = colors.pop();
                 c.beginPath();
                 c.moveTo(x, y);
                 c.lineTo(target.x, target.y);
                 c.stroke();
             });
+            c.strokeStyle = "black";
         };
         this.drawEffect = (effect) => {
             this.context.drawImage(effect.img.imgData, effect.x, effect.y);
@@ -567,7 +570,7 @@ class StateMachine {
             document.fullscreen && document.exitFullscreen();
             const scores = this.computeFinalScore(result, target);
             const top3 = scores.slice(0, 3);
-            this.renderer.drawLines(top3, target);
+            this.renderer.drawWinnerLines(top3, target);
             this.ui.resultPopup(top3);
             SOUND.applause.play();
             setTimeout(this.ui.closePopup, 6000);
