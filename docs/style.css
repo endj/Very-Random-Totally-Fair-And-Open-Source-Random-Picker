@@ -10,11 +10,15 @@
   button {
     background: white;
     width: 35px;
-    border-left: 1px solid black;
-    border-bottom: 0px;
-    border-top: 0px;
-    border-right: 0px;
-    cursor: pointer
+    /* border-left: 1px solid black; */
+    /* border-bottom: 0px; */
+    /* border-top: 0px; */
+    /* border-right: 0px; */
+    outline: 0.1px solid #333333;
+    cursor: pointer;
+    border: none;
+    /* border-color: white; */
+    /* border-radius: 2px; */
   }
 
   button:hover {
@@ -36,10 +40,6 @@
     border-radius: 5px;
   }
 
-  li {
-    padding: 0 0 0 5px;
-  }
-
   canvas {
     background-color: white;
     margin: auto;
@@ -49,6 +49,7 @@
     display: flex;
     width: 100%;
     justify-content: space-between;
+    /* border: 1px solid black; */
   }
 
   .preset-item:hover {
@@ -62,10 +63,14 @@
 
   .name {
     width: 200px;
-    border-bottom: 1px solid black;
+    /* border-bottom: 1px solid black; */
+    padding: 3px;
     display: flex;
     justify-content: space-between;
     background: whitesmoke;
+    outline: 1px solid #dccdcd;
+    /* border-color: white; */
+    /* border: none; */
   }
 
   .popup {
@@ -97,8 +102,7 @@
     width: 80%;
     height: 60%;
     padding: 10px;
-    border: 5px solid;
-    border-color: darkcyan;
+    border: 1px solid #e9d5d5;
   }
 
   .preset-divider {

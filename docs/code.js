@@ -1,6 +1,6 @@
 let CONFIG = {
     userListRenderLimit: 25,
-    baseVelocity: 8,
+    baseVelocity: 10,
     randomVelocity: 2,
 };
 const SOUND = {
@@ -30,18 +30,22 @@ var ImageNames;
 (function (ImageNames) {
     ImageNames[ImageNames["TELEPORT"] = 0] = "TELEPORT";
     ImageNames[ImageNames["DUPLICATE"] = 1] = "DUPLICATE";
+    ImageNames[ImageNames["GRAVITY"] = 2] = "GRAVITY";
 })(ImageNames || (ImageNames = {}));
 class Images {
 }
 Images.images = new Map([
     [ImageNames.DUPLICATE, new PixelImage(ImageNames.DUPLICATE, "duplicate.png", 48, 48)],
-    [ImageNames.TELEPORT, new PixelImage(ImageNames.TELEPORT, "teleport.png", 48, 48)]
+    [ImageNames.TELEPORT, new PixelImage(ImageNames.TELEPORT, "teleport.png", 48, 48)],
+    [ImageNames.GRAVITY, new PixelImage(ImageNames.GRAVITY, "blackhole.png", 48, 48)]
 ]);
 Images.getImage = (name) => Images.images.get(name);
 class Maths {
 }
 Maths.hashCache = new Map();
 Maths.coinflip = () => Math.random() > 0.5;
+Maths.distance = (x1, y1, x2, y2) => Math.sqrt(Math.pow((x1 - x2), 2) + Math.pow((y1 - y2), 2));
+Maths.normalize = (val, min, max, range) => (val - min) / ((max - min) * range);
 Maths.hashString = (text) => {
     const cachedHash = Maths.hashCache.get(text);
     if (cachedHash) {
@@ -81,50 +85,92 @@ var EffectNames;
 (function (EffectNames) {
     EffectNames[EffectNames["TELEPORT"] = 0] = "TELEPORT";
     EffectNames[EffectNames["DUPLICATE"] = 1] = "DUPLICATE";
-    EffectNames[EffectNames["GRAVITY"] = 2] = "GRAVITY"; // Todo
+    EffectNames[EffectNames["GRAVITY"] = 2] = "GRAVITY";
 })(EffectNames || (EffectNames = {}));
 class EffectFunctions {
 }
 EffectFunctions.coinflip = () => Math.random() > 0.5;
 EffectFunctions.effects = new Map([
     [EffectNames.DUPLICATE,
-        (context, p) => {
+        function* duplicate(context, p) {
             for (let i = 0; i < 2; i++) {
                 const dx = Math.random();
                 const dy = Math.random();
                 context.state.positions.push(new Point(p.name, p.x, p.y, Maths.coinflip() ? dx : -dx, Maths.coinflip() ? dy : -dy, p.velocity));
             }
+            yield false;
         }
     ],
     [EffectNames.TELEPORT,
-        (context, p) => {
+        function* teleport(context, p) {
             let [x, y] = context.state.safeRandomLocation();
             context.state.target = new Target(x, y);
+            yield false;
+        }
+    ],
+    [EffectNames.GRAVITY,
+        function* gravity(context, p) {
+            const maxSize = 60;
+            const tickPerSec = 60;
+            const [x, y] = [p.x, p.y];
+            const canvasContext = context.renderer.context;
+            const applyForce = (p, size) => {
+                let dx = Math.abs(p.x - x);
+                let dy = Math.abs(p.y - y);
+                let normX = Maths.normalize(dx, 0, context.renderer.W, 300) * size;
+                let normY = Maths.normalize(dy, 0, context.renderer.H, 300) * size;
+                p.dx = p.x > x ? p.dx - normX : p.dx + normX;
+                p.dy = p.y > y ? p.dy - normY : p.dy + normY;
+            };
+            const drawCircle = (size) => {
+                canvasContext.beginPath();
+                canvasContext.arc(x, y, size, 0, 2 * Math.PI);
+                canvasContext.fill();
+            };
+            for (let i = 0; i < tickPerSec * 4; i++) {
+                const blackHoleSize = Math.min(i * 0.4, maxSize);
+                drawCircle(blackHoleSize);
+                context.state.positions.forEach(p => {
+                    applyForce(p, blackHoleSize);
+                });
+                yield true;
+            }
+            for (let i = tickPerSec * 2; i > 0; i--) {
+                const blackHoleSize = Math.min(i, maxSize);
+                drawCircle(blackHoleSize);
+                context.state.positions.forEach(p => {
+                    applyForce(p, blackHoleSize);
+                });
+                yield true;
+            }
+            yield false;
         }
     ]
 ]);
 EffectFunctions.getFunction = (effectName) => EffectFunctions.effects.get(effectName);
-class Effect {
-    constructor(img, x, y, apply) {
+class Pickups {
+    constructor(img, x, y, appliedEffect) {
         this.img = img;
         this.x = x;
         this.y = y;
         this.id = Math.random();
-        this.apply = apply;
+        this.appliedEffect = appliedEffect;
     }
 }
 class EffectsRepository {
 }
 EffectsRepository.effects = new Map([
     [EffectNames.DUPLICATE,
-        new Effect(Images.getImage(ImageNames.DUPLICATE), 0, 0, EffectFunctions.getFunction(EffectNames.DUPLICATE))],
+        new Pickups(Images.getImage(ImageNames.DUPLICATE), 0, 0, EffectFunctions.getFunction(EffectNames.DUPLICATE))],
     [EffectNames.TELEPORT,
-        new Effect(Images.getImage(ImageNames.TELEPORT), 0, 0, EffectFunctions.getFunction(EffectNames.TELEPORT))]
+        new Pickups(Images.getImage(ImageNames.TELEPORT), 0, 0, EffectFunctions.getFunction(EffectNames.TELEPORT))],
+    [EffectNames.GRAVITY,
+        new Pickups(Images.getImage(ImageNames.GRAVITY), 0, 0, EffectFunctions.getFunction(EffectNames.GRAVITY))]
 ]);
 EffectsRepository.getEffect = (name) => EffectsRepository.effects.get(name);
 EffectsRepository.createEffect = (name) => {
     const effect = EffectsRepository.getEffect(name);
-    return new Effect(effect.img, effect.x, effect.y, effect.apply);
+    return new Pickups(effect.img, effect.x, effect.y, effect.appliedEffect);
 };
 class Score {
     constructor(score, point) {
@@ -142,15 +188,17 @@ class State {
     constructor(renderConstraints, onCompletion) {
         this.running = false;
         this.positions = [];
+        this.pickups = [];
         this.effects = [];
         this.target = new Target(0, 0);
         this.coinflip = () => Math.random() > 0.5;
         this.initializeEffects = () => {
             const numOfEffects = Math.min(5, this.positions.length);
-            this.effects.push(this.effectWithRandomLocation(EffectNames.DUPLICATE));
-            this.effects.push(this.effectWithRandomLocation(EffectNames.TELEPORT));
+            this.pickups.push(this.effectWithRandomLocation(EffectNames.DUPLICATE));
+            this.pickups.push(this.effectWithRandomLocation(EffectNames.TELEPORT));
+            this.pickups.push(this.effectWithRandomLocation(EffectNames.GRAVITY));
             for (let i = 0; i < numOfEffects; i++) {
-                this.effects.push(this.randomEffectAndLocation());
+                this.pickups.push(this.randomEffectAndLocation());
             }
         };
         this.randomEffectAndLocation = () => {
@@ -546,19 +594,18 @@ class StateMachine {
                 done = done && point.velocity === 0;
                 i++;
             }
-            const effects = this.state.effects;
-            const effectsToRemoveById = new Set();
-            for (let effect of effects) {
-                let point = this.detectEffectColision(effect, positions);
+            this.state.pickups = this.state.pickups.filter(pickup => {
+                let point = this.detectPickupColision(pickup, positions);
                 if (point) {
-                    effectsToRemoveById.add(effect.id);
-                    effect.apply(this, point);
+                    this.state.effects.push(pickup.appliedEffect(this, point));
+                    return false;
                 }
                 else {
-                    this.renderer.drawImage(effect.img, effect.x, effect.y);
+                    this.renderer.drawImage(pickup.img, pickup.x, pickup.y);
+                    return true;
                 }
-            }
-            this.state.effects = effects.filter(e => !effectsToRemoveById.has(e.id));
+            });
+            this.state.effects.forEach(effect => effect.next());
             this.renderer.drawTarget(target);
             if (!done) {
                 window.requestAnimationFrame(this.tick);
@@ -568,7 +615,7 @@ class StateMachine {
                 this.onEnd(positions, target);
             }
         };
-        this.detectEffectColision = (effect, points) => {
+        this.detectPickupColision = (effect, points) => {
             const img = effect.img;
             for (let point of points) {
                 if (point.x >= effect.x && point.x < (effect.x + img.width)) {
