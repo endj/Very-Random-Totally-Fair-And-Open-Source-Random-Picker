@@ -12,4 +12,4 @@
 
 #### Hosted on github pages at:
 
-https://endj.github.io/VeryRandomTotallyFairAndOpenSourceRandomPicker/index.html
+https://endj.github.io/Very-Random-Totally-Fair-And-Open-Source-Random-Picker/
