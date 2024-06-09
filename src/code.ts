@@ -1,11 +1,11 @@
 
-let CONFIG = {
+const CONFIG = {
     userListRenderLimit: 25,
     baseVelocity: 10,
     randomVelocity: 2,
 }
 const SOUND = {
-    applause: new Audio("a.wav")
+    applause: new Audio("assets/a.wav")
 }
 
 class RGB {
@@ -45,9 +45,9 @@ enum ImageNames {
 
 class Images {
     static images: Map<ImageNames, PixelImage> = new Map([
-        [ImageNames.DUPLICATE, new PixelImage(ImageNames.DUPLICATE, "duplicate.png", 48, 48)],
-        [ImageNames.TELEPORT, new PixelImage(ImageNames.TELEPORT, "teleport.png", 48, 48)],
-        [ImageNames.GRAVITY, new PixelImage(ImageNames.GRAVITY, "blackhole.png", 48, 48)]
+        [ImageNames.DUPLICATE, new PixelImage(ImageNames.DUPLICATE, "assets/duplicate.png", 48, 48)],
+        [ImageNames.TELEPORT, new PixelImage(ImageNames.TELEPORT, "assets/teleport.png", 48, 48)],
+        [ImageNames.GRAVITY, new PixelImage(ImageNames.GRAVITY, "assets/blackhole.png", 48, 48)]
     ]);
     static getImage = (name: ImageNames) => Images.images.get(name);
 }
@@ -443,7 +443,8 @@ class Toast {
 }
 
 class UI {
-    get = (id: string): HTMLElement => document.getElementById(id);
+    get = (id: string): HTMLElement => document.getElementById(id) as HTMLElement;
+    getButton = (id: string): HTMLInputElement => document.getElementById(id) as HTMLInputElement
     create = (type: string): HTMLElement => document.createElement(type);
     userSet: Set<string> = new Set();
     input = this.get('in') as HTMLInputElement;
@@ -668,9 +669,9 @@ class Persistance {
 
 
 class StateMachine {
-    ui: UI;
-    state: State;
-    renderer: CanvasRenderer;
+    readonly ui: UI;
+    readonly state: State;
+    readonly renderer: CanvasRenderer;
     constructor(ui: UI, renderSize: RenderSize, renderer: CanvasRenderer) {
         this.ui = ui;
         this.state = new State(renderSize, this.onEnd);
@@ -692,7 +693,7 @@ class StateMachine {
 
     onStart = () => {
         this.state.running = true;
-        (this.ui.get('init-btn') as HTMLInputElement).disabled = true;
+        this.ui.getButton('init-btn').disabled = true;
         this.ui.get("users").hidden = true;
         canvas.hidden = false;
         if (!State.isMobile) {
@@ -701,7 +702,7 @@ class StateMachine {
     };
 
     onEnd = (result: Point[], target: Target) => {
-        (this.ui.get('init-btn') as HTMLInputElement).disabled = false;
+        this.ui.getButton('init-btn').disabled = false;
         document.fullscreen && document.exitFullscreen()
         const scores: Score[] = this.computeFinalScore(result, target);
         const top3 = scores.slice(0, 3)
@@ -725,17 +726,15 @@ class StateMachine {
         this.renderer.clear();
         let done: boolean = true;
 
-        let target = this.state.target;
-        let positions = this.state.positions;
-        var i: number = 0, len: number = positions.length;
-        while (i < len) {
+        const target = this.state.target;
+        const positions = this.state.positions;
+
+        for(let i = 0; i < positions.length; i++) {
             const point = positions[i];
             this.state.updatePoint(point)
             this.renderer.drawPoint(point)
             done = done && point.velocity === 0;
-            i++;
         }
-
 
         this.state.pickups = this.state.pickups.filter(pickup => {
             let point = this.detectPickupColision(pickup, positions);
@@ -786,8 +785,6 @@ document.addEventListener('keypress', e => {
         }
     }
 });
-
-
 ui.get('add-name').addEventListener('click', ui.addName);
 ui.get('save-preset').addEventListener('click', ui.saveToPreset);
 ui.get('toggle-preset').onclick = () => ui.toggleHidden('preset');

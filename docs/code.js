@@ -4,7 +4,7 @@ let CONFIG = {
     randomVelocity: 2,
 };
 const SOUND = {
-    applause: new Audio("a.wav")
+    applause: new Audio("assets/a.wav")
 };
 class RGB {
     constructor(r, g, b) {
@@ -35,9 +35,9 @@ var ImageNames;
 class Images {
 }
 Images.images = new Map([
-    [ImageNames.DUPLICATE, new PixelImage(ImageNames.DUPLICATE, "duplicate.png", 48, 48)],
-    [ImageNames.TELEPORT, new PixelImage(ImageNames.TELEPORT, "teleport.png", 48, 48)],
-    [ImageNames.GRAVITY, new PixelImage(ImageNames.GRAVITY, "blackhole.png", 48, 48)]
+    [ImageNames.DUPLICATE, new PixelImage(ImageNames.DUPLICATE, "assets/duplicate.png", 48, 48)],
+    [ImageNames.TELEPORT, new PixelImage(ImageNames.TELEPORT, "assets/teleport.png", 48, 48)],
+    [ImageNames.GRAVITY, new PixelImage(ImageNames.GRAVITY, "assets/blackhole.png", 48, 48)]
 ]);
 Images.getImage = (name) => Images.images.get(name);
 class Maths {
